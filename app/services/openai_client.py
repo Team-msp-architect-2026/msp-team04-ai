@@ -11,7 +11,7 @@ client = OpenAI(
 )
 
 
-def generate_search_suggestion_json(prompt: str) -> dict[str, Any]:
+def generate_json(prompt: str) -> dict[str, Any]:
     response = client.responses.create(
         model=settings.openai_model,
         input=prompt,
@@ -23,3 +23,23 @@ def generate_search_suggestion_json(prompt: str) -> dict[str, Any]:
     )
 
     return json.loads(response.output_text)
+
+
+def generate_search_suggestion_json(prompt: str) -> dict[str, Any]:
+    return generate_json(prompt)
+
+
+def generate_rerank_json(prompt: str) -> dict[str, Any]:
+    return generate_json(prompt)
+
+
+def generate_embedding(text: str) -> list[float]:
+    response = client.embeddings.create(
+        model=settings.openai_embedding_model,
+        input=text,
+    )
+
+    if not response.data:
+        raise RuntimeError("OpenAI embedding response is empty.")
+
+    return response.data[0].embedding

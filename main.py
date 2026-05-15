@@ -1,5 +1,7 @@
 from fastapi import FastAPI
 
+from app.routers.embedding import router as embedding_router
+from app.routers.rerank import router as rerank_router
 from app.routers.search_suggestion import router as search_suggestion_router
 
 app = FastAPI(
@@ -18,3 +20,5 @@ async def health_check():
 
 
 app.include_router(search_suggestion_router)
+app.include_router(embedding_router)
+app.include_router(rerank_router)
