@@ -13,7 +13,7 @@ class SearchSuggestionRequest(BaseModel):
     children: list[ChildContext] = Field(default_factory=list)
     recent_searches: list[str] = Field(default_factory=list)
     global_keywords: list[str] = Field(default_factory=list)
-    limit: int = Field(default=10, ge=1, le=10)
+    limit: int = Field(default=5, ge=1, le=5)
 
 
 class SearchSuggestionResponse(BaseModel):
