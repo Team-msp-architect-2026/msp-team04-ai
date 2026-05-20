@@ -4,6 +4,7 @@ from app.routers.embedding import router as embedding_router
 from app.routers.rerank import router as rerank_router
 from app.routers.search_suggestion import router as search_suggestion_router
 from app.routers.top3_compare import router as top3_compare_router
+from app.routers.program_reason import router as program_reason_router
 
 app = FastAPI(
     title="MoMent AI Service",
@@ -24,3 +25,4 @@ app.include_router(search_suggestion_router)
 app.include_router(embedding_router)
 app.include_router(rerank_router)
 app.include_router(top3_compare_router)
+app.include_router(program_reason_router)
