@@ -47,7 +47,7 @@ def build_prompt(request: RerankRequest) -> str:
 - 후보는 OpenSearch Vector Search에서 먼저 가져온 최대 20개 프로그램이다.
 - 너는 후보를 새로 만들거나 삭제하지 않는다.
 - 반드시 입력으로 받은 candidateId만 사용한다.
-- 모든 후보에 대해 rerankScore를 반환한다.
+- 가능한 모든 후보에 대해 rerankScore를 반환한다.
 - rerankScore는 0.0 이상 1.0 이하 숫자다.
 - query와 title, description, reviewSummary의 의미적 관련성을 가장 중요하게 본다.
 - semanticScore는 1차 검색 점수 참고값으로만 사용한다.
@@ -84,9 +84,9 @@ def normalize_results(
     if not isinstance(raw_results, list):
         raise ValueError("Rerank response must contain results array.")
 
-    candidate_ids = {candidate.candidate_id for candidate in candidates}
+    candidate_map = {candidate.candidate_id: candidate for candidate in candidates}
     seen: set[int] = set()
-    results: list[RerankResult] = []
+    score_map: dict[int, float] = {}
 
     for item in raw_results:
         if not isinstance(item, dict):
@@ -104,23 +104,30 @@ def normalize_results(
         except (TypeError, ValueError):
             continue
 
-        if candidate_id not in candidate_ids:
+        if candidate_id not in candidate_map:
             continue
 
         if candidate_id in seen:
             continue
 
-        rerank_score = max(0.0, min(1.0, rerank_score))
-
         seen.add(candidate_id)
+        score_map[candidate_id] = max(0.0, min(1.0, rerank_score))
+
+    results: list[RerankResult] = []
+
+    for candidate in candidates:
+        score = score_map.get(candidate.candidate_id)
+
+        if score is None:
+            # OpenAI가 일부 후보를 누락한 경우 전체 요청을 실패시키지 않고
+            # 기존 OpenSearch semanticScore를 보존해서 Backend가 전체 후보를 병합할 수 있게 한다.
+            score = max(0.0, min(1.0, float(candidate.semantic_score or 0.0)))
+
         results.append(
             RerankResult(
-                candidate_id=candidate_id,
-                rerank_score=rerank_score,
+                candidate_id=candidate.candidate_id,
+                rerank_score=score,
             )
         )
-
-    if len(results) != len(candidate_ids):
-        raise ValueError("Rerank response does not include all candidates.")
 
     return results
