@@ -49,6 +49,10 @@ def generate_parenting_report_json(prompt: str) -> dict[str, Any]:
     return generate_json(prompt)
 
 
+def generate_next_recommend_json(prompt: str) -> dict[str, Any]:
+    return generate_json(prompt)
+
+
 def generate_embedding(text: str) -> list[float]:
     response = client.embeddings.create(
         model=settings.openai_embedding_model,
