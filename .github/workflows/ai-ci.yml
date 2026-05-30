@@ -1,0 +1,66 @@
+name: AI Service CI
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+  push:
+    branches:
+      - develop
+  workflow_dispatch:
+
+jobs:
+  ai-build-test:
+    name: AI Service - Install & Import Check
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Import check - main app
+        env:
+          OPENAI_API_KEY: ci-dummy-key
+        run: python -c "import main; print('main import OK')"
+
+      - name: Import check - routers
+        env:
+          OPENAI_API_KEY: ci-dummy-key
+        run: |
+          python -c "from app.routers.embedding import router; print('embedding router OK')"
+          python -c "from app.routers.rerank import router; print('rerank router OK')"
+          python -c "from app.routers.next_recommend import router; print('next_recommend router OK')"
+          python -c "from app.routers.parenting_report import router; print('parenting_report router OK')"
+
+      - name: Health endpoint check
+        env:
+          OPENAI_API_KEY: ci-dummy-key
+        run: |
+          python -c "
+          from fastapi.testclient import TestClient
+          from main import app
+          client = TestClient(app)
+          response = client.get('/health')
+          assert response.status_code == 200, f'Health check failed: {response.status_code}'
+          print('Health check OK:', response.json())
+          "
