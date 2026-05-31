@@ -65,3 +65,17 @@ jobs:
           echo "| Service | Image URI | Digest |" >> $GITHUB_STEP_SUMMARY
           echo "|---------|-----------|--------|" >> $GITHUB_STEP_SUMMARY
           echo "| ai-service | ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY_AI }}:dev-${{ steps.tag.outputs.SHORT_SHA }} | ${{ steps.push-ai.outputs.digest }} |" >> $GITHUB_STEP_SUMMARY
+
+      - name: Save image info as artifact
+        run: |
+          mkdir -p /tmp/image-info
+          echo "AI_SERVICE_IMAGE_URI=${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY_AI }}:dev-${{ steps.tag.outputs.SHORT_SHA }}" >> /tmp/image-info/image-info.env
+          echo "IMAGE_TAG=dev-${{ steps.tag.outputs.SHORT_SHA }}" >> /tmp/image-info/image-info.env
+          echo "AI_DIGEST=${{ steps.push-ai.outputs.digest }}" >> /tmp/image-info/image-info.env
+
+      - name: Upload image info artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-image-info
+          path: /tmp/image-info/image-info.env
+          retention-days: 7
