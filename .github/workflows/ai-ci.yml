@@ -1,66 +1,67 @@
-name: AI Service CI
+name: AI Service CI – Docker Build & ECR Push
 
 on:
-  pull_request:
-    branches:
-      - develop
-      - main
   push:
     branches:
       - develop
   workflow_dispatch:
 
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+  ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
+  ECR_REPOSITORY_AI: moment-dev-ai-service
+
 jobs:
-  ai-build-test:
-    name: AI Service - Install & Import Check
+  build-and-push:
+    name: AI Service – Docker Build & ECR Push
     runs-on: ubuntu-latest
 
-    permissions:
-      contents: read
-
     steps:
-      - name: Checkout source code
+      - name: Checkout source
         uses: actions/checkout@v4
 
-      - name: Set up Python 3.13
-        uses: actions/setup-python@v5
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          python-version: '3.13'
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
 
-      - name: Cache pip dependencies
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
+      - name: Verify AWS identity
+        run: aws sts get-caller-identity
 
-      - name: Install dependencies
-        run: pip install -r requirements.txt
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Import check - main app
-        env:
-          OPENAI_API_KEY: ci-dummy-key
-        run: python -c "import main; print('main import OK')"
+      - name: Set image tag
+        id: tag
+        run: echo "SHORT_SHA=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
 
-      - name: Import check - routers
-        env:
-          OPENAI_API_KEY: ci-dummy-key
+      - name: Build AI Service Docker image
         run: |
-          python -c "from app.routers.embedding import router; print('embedding router OK')"
-          python -c "from app.routers.rerank import router; print('rerank router OK')"
-          python -c "from app.routers.next_recommend import router; print('next_recommend router OK')"
-          python -c "from app.routers.parenting_report import router; print('parenting_report router OK')"
+          docker build \
+            --label "org.opencontainers.image.revision=${{ github.sha }}" \
+            --label "org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}" \
+            --label "org.opencontainers.image.created=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --label "service=ai-service" \
+            -t ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY_AI }}:dev-${{ steps.tag.outputs.SHORT_SHA }} \
+            .
 
-      - name: Health endpoint check
-        env:
-          OPENAI_API_KEY: ci-dummy-key
+      - name: Push AI Service image to ECR
+        id: push-ai
         run: |
-          python -c "
-          from fastapi.testclient import TestClient
-          from main import app
-          client = TestClient(app)
-          response = client.get('/health')
-          assert response.status_code == 200, f'Health check failed: {response.status_code}'
-          print('Health check OK:', response.json())
-          "
+          docker push ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY_AI }}:dev-${{ steps.tag.outputs.SHORT_SHA }}
+          DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY_AI }}:dev-${{ steps.tag.outputs.SHORT_SHA }})
+          echo "AI_IMAGE_URI=${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY_AI }}:dev-${{ steps.tag.outputs.SHORT_SHA }}" >> $GITHUB_OUTPUT
+          echo "AI_DIGEST=$DIGEST" >> $GITHUB_OUTPUT
+
+      - name: Print image summary
+        run: |
+          echo "## Docker Build & ECR Push 결과" >> $GITHUB_STEP_SUMMARY
+          echo "| Service | Image URI | Digest |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|-----------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| ai-service | ${{ steps.push-ai.outputs.AI_IMAGE_URI }} | ${{ steps.push-ai.outputs.AI_DIGEST }} |" >> $GITHUB_STEP_SUMMARY
