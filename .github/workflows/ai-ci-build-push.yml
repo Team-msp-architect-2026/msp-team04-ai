@@ -79,3 +79,22 @@ jobs:
           name: ai-image-info
           path: /tmp/image-info/image-info.env
           retention-days: 7
+
+      - name: Trigger Helm values update
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITOPS_TOKEN }}
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: 'Team-msp-architect-2026',
+              repo: 'msp-team04-infra',
+              workflow_id: 'update-helm-values.yml',
+              ref: 'develop',
+              inputs: {
+                service: 'ai-service',
+                image_tag: 'dev-${{ steps.tag.outputs.SHORT_SHA }}',
+                environment: 'dev',
+                dry_run: 'false'
+              }
+            });
+            console.log('Triggered Helm values update for dev-${{ steps.tag.outputs.SHORT_SHA }}');
