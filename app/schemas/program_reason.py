@@ -12,7 +12,7 @@ class ProgramReasonChild(BaseModel):
 
 
 class ProgramReasonPreference(BaseModel):
-    preference_id: int = Field(alias="preferenceId")
+    preference_id: int | None = Field(default=None, alias="preferenceId")
     region: str | None = None
     monthly_budget: str | None = Field(default=None, alias="monthlyBudget")
     transport_type: str | None = Field(default=None, alias="transportType")
@@ -58,7 +58,7 @@ class ProgramReasonScore(BaseModel):
 
 class ProgramReasonRequest(BaseModel):
     child: ProgramReasonChild
-    preference: ProgramReasonPreference
+    preference: ProgramReasonPreference | None = None
     program: ProgramReasonProgram
     score: ProgramReasonScore
 
