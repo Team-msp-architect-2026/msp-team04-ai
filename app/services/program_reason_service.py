@@ -33,19 +33,24 @@ def generate_program_reason(
 
 
 def build_prompt(request: ProgramReasonRequest) -> str:
-    payload = {
-        "child": {
-            "age": request.child.age,
-            "concerns": request.child.concerns,
-        },
-        "preference": {
+    preference_payload = None
+
+    if request.preference is not None:
+        preference_payload = {
             "region": request.preference.region,
             "monthlyBudget": request.preference.monthly_budget,
             "transportType": request.preference.transport_type,
             "moveTime": request.preference.move_time,
             "onlinePreference": request.preference.online_preference,
             "classType": request.preference.class_type,
+        }
+
+    payload = {
+        "child": {
+            "age": request.child.age,
+            "concerns": request.child.concerns,
         },
+        "preference": preference_payload,
         "program": {
             "programId": request.program.program_id,
             "title": request.program.title,
@@ -73,9 +78,11 @@ def build_prompt(request: ProgramReasonRequest) -> str:
 너는 MoMent 프로그램 상세 화면의 AI 추천 이유 생성기다.
 
 목표:
-- 이미 백엔드 deterministic 추천 엔진이 계산한 matchScore, reasonCodes, scoreBreakdown을 바탕으로 부모가 이해하기 쉬운 추천 이유를 만든다.
+- 백엔드가 전달한 child, program, score 정보를 바탕으로 부모가 이해하기 쉬운 추천 이유를 만든다.
+- preference가 제공된 경우에만 보호자 선호 조건을 추가 참고한다.
+- preference가 null이어도 자녀 나이, 관심사, 프로그램 제목/설명/태그/대상연령/비용 정보를 기준으로 추천 이유를 만든다.
 - 추천 점수와 후보는 새로 계산하지 않는다.
-- 프로그램 정보, 자녀 나이, 관심사, 보호자 선호 조건, 백엔드 점수 근거만 사용한다.
+- 프로그램 정보, 자녀 나이, 관심사, 백엔드 점수 근거만 사용한다.
 - 제공되지 않은 기관명, 혜택명, 후기 내용, 수업 내용을 지어내지 않는다.
 - 부모가 프로그램 상세 화면에서 바로 이해할 수 있도록 짧고 구체적인 문장으로 작성한다.
 - reasonList는 2개 이상 4개 이하로 작성한다.
@@ -173,8 +180,21 @@ def build_default_reasons(request: ProgramReasonRequest) -> list[str]:
         reasons.append("현재 모집 중이라 조건이 맞으면 바로 신청을 검토할 수 있어요.")
 
     if not reasons:
+        concerns = ", ".join(request.child.concerns[:2])
         title = normalize_text(program.title, 30) or "이 프로그램"
-        reasons.append(f"{title}은 추천 점수와 보호자 조건을 기준으로 검토할 만한 프로그램이에요.")
+
+        if concerns:
+            reasons.append(f"{concerns} 관심사를 가진 아이가 체험해보기 좋은 프로그램이에요.")
+
+        if bool(program.is_free):
+            reasons.append("무료로 참여할 수 있어 비용 부담 없이 경험해볼 수 있어요.")
+
+        if program.tags:
+            tags = ", ".join(program.tags[:2])
+            reasons.append(f"{tags} 특성을 가진 프로그램이라 아이가 흥미를 느끼기 좋아요.")
+
+        if not reasons:
+            reasons.append(f"{title}은 아이 정보와 프로그램 내용을 기준으로 검토할 만한 프로그램이에요.")
 
     return reasons[:MAX_REASON_COUNT]
 
